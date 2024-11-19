@@ -8,6 +8,7 @@ Zoom In/Out: With the image selected, scroll the mouse wheel up/down to zoom in/
 Rotate Clockwise/Counterclockwise: With the image selected, hold down the Shift key and scroll the mouse wheel up/down to rotate the image clockwise/counterclockwise.
 4. Other functions:
 All on the button, quite obvious
+
 **Reset the canvas size and drag the node interface box to refresh it.**
 
 
