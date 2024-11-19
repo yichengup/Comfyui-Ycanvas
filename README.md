@@ -1,2 +1,3 @@
 # Comfyui-Ycnode
-![image](https://github.com/user-attachments/assets/40cd6eb1-90ca-4a24-a27f-33d18083e692)
+![image](https://github.com/user-attachments/assets/65175669-4db0-4339-a9f7-b4d63298b4d8)
+
