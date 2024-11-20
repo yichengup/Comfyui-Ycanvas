@@ -299,6 +299,106 @@ async function createCanvasWidget(node, widget, app) {
                 onclick: () => {
                     canvas.mirrorVertical();
                 }
+            }),
+            // 在控制面板中添加抠图按钮
+            $el("button.painter-button", {
+                textContent: "Matting",
+                onclick: async () => {
+                    try {
+                        if (!canvas.selectedLayer) {
+                            throw new Error("Please select an image first");
+                        }
+                        
+                        // 获取或创建状态指示器
+                        const statusIndicator = MattingStatusIndicator.getInstance(controlPanel.querySelector('.controls'));
+                        
+                        // 添加状态监听
+                        const updateStatus = (event) => {
+                            const {status} = event.detail;
+                            statusIndicator.setStatus(status);
+                        };
+                        
+                        api.addEventListener("matting_status", updateStatus);
+                        
+                        try {
+                            // 获取图像数据
+                            const imageData = await canvas.getLayerImageData(canvas.selectedLayer);
+                            console.log("Sending image to server...");
+                            
+                            // 发送请求
+                            const response = await fetch("/matting", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({
+                                    image: imageData,
+                                    threshold: 0.5,
+                                    refinement: 1
+                                })
+                            });
+                            
+                            if (!response.ok) {
+                                throw new Error(`Server error: ${response.status}`);
+                            }
+                            
+                            const result = await response.json();
+                            console.log("Creating new layer with matting result...");
+                            
+                            // 创建新图层
+                            const mattedImage = new Image();
+                            mattedImage.onload = async () => {
+                                // 创建临时画布来处理透明度
+                                const tempCanvas = document.createElement('canvas');
+                                const tempCtx = tempCanvas.getContext('2d');
+                                tempCanvas.width = canvas.selectedLayer.width;
+                                tempCanvas.height = canvas.selectedLayer.height;
+                                
+                                // 绘制原始图像
+                                tempCtx.drawImage(
+                                    mattedImage,
+                                    0, 0,
+                                    tempCanvas.width, tempCanvas.height
+                                );
+                                
+                                // 创建新图层
+                                const newImage = new Image();
+                                newImage.onload = async () => {
+                                    const newLayer = {
+                                        image: newImage,
+                                        x: canvas.selectedLayer.x,
+                                        y: canvas.selectedLayer.y,
+                                        width: canvas.selectedLayer.width,
+                                        height: canvas.selectedLayer.height,
+                                        rotation: canvas.selectedLayer.rotation,
+                                        zIndex: canvas.layers.length + 1
+                                    };
+                                    
+                                    canvas.layers.push(newLayer);
+                                    canvas.selectedLayer = newLayer;
+                                    canvas.render();
+                                    
+                                    // 保存并更新
+                                    await canvas.saveToServer(widget.value);
+                                    app.graph.runStep();
+                                };
+                                
+                                // 转换为PNG并保持透明度
+                                newImage.src = tempCanvas.toDataURL('image/png');
+                            };
+                            
+                            mattedImage.src = result.matted_image;
+                            console.log("Matting result applied successfully");
+                            
+                        } finally {
+                            api.removeEventListener("matting_status", updateStatus);
+                        }
+                        
+                    } catch (error) {
+                        console.error("Matting error:", error);
+                        alert(`Error during matting process: ${error.message}`);
+                    }
+                }
             })
         ])
     ]);
@@ -414,6 +514,65 @@ async function createCanvasWidget(node, widget, app) {
         canvas: canvas,
         panel: controlPanel
     };
+}
+
+// 修改状态指示器类，确保单例模式
+class MattingStatusIndicator {
+    static instance = null;
+    
+    static getInstance(container) {
+        if (!MattingStatusIndicator.instance) {
+            MattingStatusIndicator.instance = new MattingStatusIndicator(container);
+        }
+        return MattingStatusIndicator.instance;
+    }
+    
+    constructor(container) {
+        this.indicator = document.createElement('div');
+        this.indicator.style.cssText = `
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #808080;
+            margin-left: 10px;
+            display: inline-block;
+            transition: background-color 0.3s;
+        `;
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            .processing {
+                background-color: #2196F3;
+                animation: blink 1s infinite;
+            }
+            .completed {
+                background-color: #4CAF50;
+            }
+            .error {
+                background-color: #f44336;
+            }
+            @keyframes blink {
+                0% { opacity: 1; }
+                50% { opacity: 0.4; }
+                100% { opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        container.appendChild(this.indicator);
+    }
+    
+    setStatus(status) {
+        this.indicator.className = ''; // 清除所有状态
+        if (status) {
+            this.indicator.classList.add(status);
+        }
+        if (status === 'completed') {
+            setTimeout(() => {
+                this.indicator.classList.remove('completed');
+            }, 2000);
+        }
+    }
 }
 
 app.registerExtension({
