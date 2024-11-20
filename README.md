@@ -28,7 +28,7 @@ Model Name： models--ZhengPeng7--BiRefNet
 The cloud disk link is as follows
 
 baidu Link：https://pan.baidu.com/s/1PiZvuHcdlcZGoL7WDYnMkA?pwd=nt76  
-google link: https://drive.google.com/drive/folders/1BCLInCLH89fmTpYoP8Sgs_Eqww28f_wq?usp=drive_link
+google link: https://drive.google.com/drive/folders/1BCLInCLH89fmTpYoP8Sgs_Eqww28f_wq?usp=sharing
 
 Place it in： models/BiRefNet
 
