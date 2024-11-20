@@ -24,7 +24,13 @@ Generally, the model is downloaded automatically. If it doesn't work, you can us
 Manual placement
 
 Model Name： models--ZhengPeng7--BiRefNet
-Link：https://pan.baidu.com/s/1PiZvuHcdlcZGoL7WDYnMkA?pwd=nt76  Place it in： models/BiRefNet
+
+The cloud disk link is as follows
+
+baidu Link：https://pan.baidu.com/s/1PiZvuHcdlcZGoL7WDYnMkA?pwd=nt76  
+google link: https://drive.google.com/drive/folders/1BCLInCLH89fmTpYoP8Sgs_Eqww28f_wq?usp=drive_link
+
+Place it in： models/BiRefNet
 
 **Example diagram of the process of canvas node, matting, layout, and output**
 ![1732110001138](https://github.com/user-attachments/assets/372a14a5-8255-4768-9547-d8a6083bb76c)
