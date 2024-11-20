@@ -26,7 +26,8 @@ Manual placement
 Model Name： models--ZhengPeng7--BiRefNet
 Link：https://pan.baidu.com/s/1PiZvuHcdlcZGoL7WDYnMkA?pwd=nt76  Place it in： models/BiRefNet
 
-![image](https://github.com/user-attachments/assets/65175669-4db0-4339-a9f7-b4d63298b4d8)
+![1732110001138](https://github.com/user-attachments/assets/372a14a5-8255-4768-9547-d8a6083bb76c)
+
 
 **press the button of matting can matting the image in the canvas, and then continue to edit the image in the canvass**
 ![image](https://github.com/user-attachments/assets/faa4156c-e511-4c8c-9165-1a139fb8c894)
