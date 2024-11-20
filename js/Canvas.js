@@ -48,16 +48,32 @@ export class Canvas {
         let isResizing = false;
         let resizeHandle = null;
         let lastClickTime = 0;
+        let isAltPressed = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let originalWidth = 0;
+        let originalHeight = 0;
         
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Control') {
                 this.isCtrlPressed = true;
+            }
+            if (e.key === 'Alt') {
+                isAltPressed = true;
+                e.preventDefault();
+            }
+            if (e.key === 'Delete' && this.selectedLayer) {
+                const index = this.layers.indexOf(this.selectedLayer);
+                this.removeLayer(index);
             }
         });
 
         document.addEventListener('keyup', (e) => {
             if (e.key === 'Control') {
                 this.isCtrlPressed = false;
+            }
+            if (e.key === 'Alt') {
+                isAltPressed = false;
             }
         });
 
@@ -79,6 +95,13 @@ export class Canvas {
             
             if (result) {
                 const clickedLayer = result.layer;
+                
+                dragStartX = mouseX;
+                dragStartY = mouseY;
+                if (clickedLayer) {
+                    originalWidth = clickedLayer.width;
+                    originalHeight = clickedLayer.height;
+                }
                 
                 if (this.isCtrlPressed) {
                     const index = this.selectedLayers.indexOf(clickedLayer);
@@ -125,57 +148,18 @@ export class Canvas {
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
-            if (isResizing && resizeHandle) {
-                const dx = mouseX - lastX;
-                const dy = mouseY - lastY;
+            if (isDragging && isAltPressed) {
+                const dx = mouseX - dragStartX;
+                const dy = mouseY - dragStartY;
                 
-                this.selectedLayers.forEach(layer => {
-                    const originalWidth = layer.width;
-                    const originalHeight = layer.height;
-                    const originalX = layer.x;
-                    const originalY = layer.y;
-
-                    switch(resizeHandle) {
-                        case 'nw':
-                            layer.width = Math.max(20, originalWidth - dx);
-                            layer.height = Math.max(20, originalHeight - dy);
-                            layer.x = originalX + (originalWidth - layer.width);
-                            layer.y = originalY + (originalHeight - layer.height);
-                            break;
-                        case 'ne':
-                            layer.width = Math.max(20, originalWidth + dx);
-                            layer.height = Math.max(20, originalHeight - dy);
-                            layer.y = originalY + (originalHeight - layer.height);
-                            break;
-                        case 'se':
-                            layer.width = Math.max(20, originalWidth + dx);
-                            layer.height = Math.max(20, originalHeight + dy);
-                            break;
-                        case 'sw':
-                            layer.width = Math.max(20, originalWidth - dx);
-                            layer.height = Math.max(20, originalHeight + dy);
-                            layer.x = originalX + (originalWidth - layer.width);
-                            break;
-                    }
-                });
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    this.selectedLayer.width = Math.max(20, originalWidth + dx);
+                } else {
+                    this.selectedLayer.height = Math.max(20, originalHeight + dy);
+                }
                 
-                lastX = mouseX;
-                lastY = mouseY;
                 this.render();
-            } else if (isRotating) {
-                const currentAngle = Math.atan2(
-                    mouseY - this.rotationCenter.y,
-                    mouseX - this.rotationCenter.x
-                );
-                let rotation = (currentAngle - this.rotationStartAngle) * (180/Math.PI);
-                const snap = 15;
-                rotation = Math.round(rotation / snap) * snap;
-                
-                this.selectedLayers.forEach(layer => {
-                    layer.rotation = rotation;
-                });
-                this.render();
-            } else if (isDragging) {
+            } else if (isDragging && !isAltPressed) {
                 const dx = mouseX - lastX;
                 const dy = mouseY - lastY;
                 
@@ -189,11 +173,13 @@ export class Canvas {
                 this.render();
             }
 
-            const cursor = this.getResizeHandle(mouseX, mouseY) 
-                ? 'nw-resize' 
-                : this.isRotationHandle(mouseX, mouseY) 
-                    ? 'grab' 
-                    : isDragging ? 'move' : 'default';
+            const cursor = isAltPressed && isDragging 
+                ? (Math.abs(mouseX - dragStartX) > Math.abs(mouseY - dragStartY) ? 'ew-resize' : 'ns-resize')
+                : this.getResizeHandle(mouseX, mouseY) 
+                    ? 'nw-resize' 
+                    : this.isRotationHandle(mouseX, mouseY) 
+                        ? 'grab' 
+                        : isDragging ? 'move' : 'default';
             this.canvas.style.cursor = cursor;
         });
 
@@ -449,7 +435,7 @@ export class Canvas {
         const sortedLayers = [...this.layers].sort((a, b) => a.zIndex - b.zIndex);
         
         sortedLayers.forEach(layer => {
-            if (!layer.image || layer.width <= 0 || layer.height <= 0) return;
+            if (!layer.image) return;
             
             ctx.save();
             
@@ -457,6 +443,7 @@ export class Canvas {
             const centerY = layer.y + layer.height/2;
             const rad = layer.rotation * Math.PI / 180;
             
+            // 1. 先设置变换
             ctx.setTransform(
                 Math.cos(rad), Math.sin(rad),
                 -Math.sin(rad), Math.cos(rad),
@@ -466,6 +453,7 @@ export class Canvas {
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
             
+            // 2. 先绘制原始图像
             ctx.drawImage(
                 layer.image,
                 -layer.width/2,
@@ -474,6 +462,39 @@ export class Canvas {
                 layer.height
             );
             
+            // 3. 再应用遮罩
+            if (layer.mask) {
+                try {
+                    console.log("Applying mask to layer");
+                    const maskCanvas = document.createElement('canvas');
+                    const maskCtx = maskCanvas.getContext('2d');
+                    maskCanvas.width = layer.width;
+                    maskCanvas.height = layer.height;
+                    
+                    const maskImageData = maskCtx.createImageData(layer.width, layer.height);
+                    const maskData = new Float32Array(layer.mask);
+                    for (let i = 0; i < maskData.length; i++) {
+                        maskImageData.data[i * 4] = 
+                        maskImageData.data[i * 4 + 1] = 
+                        maskImageData.data[i * 4 + 2] = 255;
+                        maskImageData.data[i * 4 + 3] = maskData[i] * 255;
+                    }
+                    maskCtx.putImageData(maskImageData, 0, 0);
+                    
+                    // 使用destination-in混合模式
+                    ctx.globalCompositeOperation = 'destination-in';
+                    ctx.drawImage(maskCanvas, 
+                        -layer.width/2, -layer.height/2,
+                        layer.width, layer.height
+                    );
+                    
+                    console.log("Mask applied successfully");
+                } catch (error) {
+                    console.error("Error applying mask:", error);
+                }
+            }
+            
+            // 4. 最后绘制选择框
             if (this.selectedLayers.includes(layer)) {
                 this.drawSelectionFrame(layer);
             }
@@ -861,5 +882,61 @@ export class Canvas {
             this.render();
         };
         newImage.src = tempCanvas.toDataURL();
+    }
+
+    async getLayerImageData(layer) {
+        try {
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // 设置画布尺寸
+            tempCanvas.width = layer.width;
+            tempCanvas.height = layer.height;
+            
+            // 清除画布
+            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+            
+            // 绘制图层
+            tempCtx.save();
+            tempCtx.translate(layer.width/2, layer.height/2);
+            tempCtx.rotate(layer.rotation * Math.PI / 180);
+            tempCtx.drawImage(
+                layer.image,
+                -layer.width/2,
+                -layer.height/2,
+                layer.width,
+                layer.height
+            );
+            tempCtx.restore();
+            
+            // 获取base64数据
+            const dataUrl = tempCanvas.toDataURL('image/png');
+            if (!dataUrl.startsWith('data:image/png;base64,')) {
+                throw new Error("Invalid image data format");
+            }
+            
+            return dataUrl;
+        } catch (error) {
+            console.error("Error getting layer image data:", error);
+            throw error;
+        }
+    }
+
+    // 添加带遮罩的图层
+    addMattedLayer(image, mask) {
+        const layer = {
+            image: image,
+            mask: mask,
+            x: 0,
+            y: 0,
+            width: image.width,
+            height: image.height,
+            rotation: 0,
+            zIndex: this.layers.length
+        };
+        
+        this.layers.push(layer);
+        this.selectedLayer = layer;
+        this.render();
     }
 } 
