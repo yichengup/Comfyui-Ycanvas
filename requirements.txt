@@ -1,4 +1,7 @@
-numpy
-timm
-tqdm
+torch
+torchvision
 transformers
+aiohttp
+numpy
+tqdm
+Pillow
