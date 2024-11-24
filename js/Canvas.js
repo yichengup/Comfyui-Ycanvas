@@ -28,8 +28,28 @@ export class Canvas {
         this.renderInterval = 1000 / 60;
         this.isDirty = false;
         
+        this.dataInitialized = false;
+        this.pendingDataCheck = null;
+        
         this.initCanvas();
         this.setupEventListeners();
+        this.initNodeData();
+        
+        // 添加混合模式列表
+        this.blendModes = [
+            { name: 'normal', label: '正常' },
+            { name: 'multiply', label: '正片叠底' },
+            { name: 'screen', label: '滤色' },
+            { name: 'overlay', label: '叠加' },
+            { name: 'darken', label: '变暗' },
+            { name: 'lighten', label: '变亮' },
+            { name: 'color-dodge', label: '颜色减淡' },
+            { name: 'color-burn', label: '颜色加深' },
+            { name: 'hard-light', label: '强光' },
+            { name: 'soft-light', label: '柔光' },
+            { name: 'difference', label: '差值' },
+            { name: 'exclusion', label: '排除' }
+        ];
     }
 
     initCanvas() {
@@ -147,7 +167,7 @@ export class Canvas {
             const rect = this.canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
-
+            
             if (isDragging && isAltPressed) {
                 const dx = mouseX - dragStartX;
                 const dy = mouseY - dragStartY;
@@ -216,7 +236,7 @@ export class Canvas {
                     const centerX = layer.x + layer.width/2;
                     const centerY = layer.y + layer.height/2;
                     
-                    // 计算鼠标相对于图层中心的位置
+                    // 计算鼠标相对于图中心的位置
                     const relativeX = mouseX - centerX;
                     const relativeY = mouseY - centerY;
                     
@@ -314,6 +334,24 @@ export class Canvas {
                 this.render();
             }
         });
+
+        this.canvas.addEventListener('mousedown', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            if (e.shiftKey) {
+                const result = this.getLayerAtPosition(mouseX, mouseY);
+                if (result) {
+                    this.selectedLayer = result.layer;
+                    this.showBlendModeMenu(e.clientX, e.clientY);
+                    e.preventDefault(); // 阻止默认行为
+                    return;
+                }
+            }
+            
+            // ... 其余现有的mousedown处理代码 ...
+        });
     }
 
     isRotationHandle(x, y) {
@@ -327,18 +365,28 @@ export class Canvas {
     }
 
     addLayer(image) {
-        const layer = {
-            image: image,
-            x: 0,
-            y: 0,
-            width: image.width,
-            height: image.height,
-            rotation: 0,
-            zIndex: this.layers.length
-        };
-        this.layers.push(layer);
-        this.selectedLayer = layer;
-        this.render();
+        try {
+            console.log("Adding layer with image:", image);
+            
+            const layer = {
+                image: image,
+                x: (this.width - image.width) / 2,
+                y: (this.height - image.height) / 2,
+                width: image.width,
+                height: image.height,
+                rotation: 0,
+                zIndex: this.layers.length
+            };
+            
+            this.layers.push(layer);
+            this.selectedLayer = layer;
+            this.render();
+            
+            console.log("Layer added successfully");
+        } catch (error) {
+            console.error("Error adding layer:", error);
+            throw error;
+        }
     }
 
     removeLayer(index) {
@@ -438,6 +486,9 @@ export class Canvas {
             if (!layer.image) return;
             
             ctx.save();
+            
+            // 应用混合模式
+            ctx.globalCompositeOperation = layer.blendMode || 'normal';
             
             const centerX = layer.x + layer.width/2;
             const centerY = layer.y + layer.height/2;
@@ -585,83 +636,72 @@ export class Canvas {
             tempCtx.fillStyle = '#ffffff';
             tempCtx.fillRect(0, 0, this.width, this.height);
             
-            // 填充黑色背景作为遮罩的基础（表示完全透明）
+            // 填充黑色背景作为遮罩的基础
             maskCtx.fillStyle = '#000000';
             maskCtx.fillRect(0, 0, this.width, this.height);
 
-            // 绘制所有图层
+            // 按照zIndex顺序绘制所有图层
             this.layers.sort((a, b) => a.zIndex - b.zIndex).forEach(layer => {
-                // 绘制主图像
+                // 绘制主图像，包含混合模式
                 tempCtx.save();
+                tempCtx.globalCompositeOperation = layer.blendMode || 'normal';
                 tempCtx.translate(layer.x + layer.width/2, layer.y + layer.height/2);
                 tempCtx.rotate(layer.rotation * Math.PI / 180);
-                
-                // 创建临时画布来处理透明度
-                const layerCanvas = document.createElement('canvas');
-                layerCanvas.width = layer.width;
-                layerCanvas.height = layer.height;
-                const layerCtx = layerCanvas.getContext('2d');
-                
-                // 绘制图层到临时画布
-                layerCtx.drawImage(
+                tempCtx.drawImage(
                     layer.image,
-                    0,
-                    0,
+                    -layer.width/2,
+                    -layer.height/2,
                     layer.width,
                     layer.height
                 );
+                tempCtx.restore();
                 
-                // 获取图层的像素数据
-                const imageData = layerCtx.getImageData(0, 0, layer.width, layer.height);
-                const data = imageData.data;
-                
-                // 创建遮罩数据
-                const maskImageData = new ImageData(layer.width, layer.height);
-                const maskData = maskImageData.data;
-                
-                // 处理每个像素的透明度
-                for (let i = 0; i < data.length; i += 4) {
-                    const alpha = data[i + 3] / 255; // 获取原始alpha值
-                    
-                    // 设置遮罩像素值（白色表示不透明区域）
-                    maskData[i] = maskData[i + 1] = maskData[i + 2] = 255 * alpha;
-                    maskData[i + 3] = 255; // 遮罩本身始终不透明
-                }
-                
-                // 将处理后的图层绘制到主画布
-                tempCtx.drawImage(layerCanvas, -layer.width/2, -layer.height/2);
-                
-                // 绘制遮罩
+                // 处理遮罩
                 maskCtx.save();
                 maskCtx.translate(layer.x + layer.width/2, layer.y + layer.height/2);
                 maskCtx.rotate(layer.rotation * Math.PI / 180);
-                
-                // 创建临时遮罩画布
-                const tempMaskCanvas = document.createElement('canvas');
-                tempMaskCanvas.width = layer.width;
-                tempMaskCanvas.height = layer.height;
-                const tempMaskCtx = tempMaskCanvas.getContext('2d');
-                
-                // 将遮罩数据绘制到临时画布
-                tempMaskCtx.putImageData(maskImageData, 0, 0);
-                
-                // 使用lighter混合模式来叠加透明度
                 maskCtx.globalCompositeOperation = 'lighter';
-                maskCtx.drawImage(tempMaskCanvas, -layer.width/2, -layer.height/2);
                 
+                // 如果图层有遮罩，使用它
+                if (layer.mask) {
+                    maskCtx.drawImage(layer.mask, -layer.width/2, -layer.height/2, layer.width, layer.height);
+                } else {
+                    // 如果没有遮罩，使用图层的alpha通道
+                    const layerCanvas = document.createElement('canvas');
+                    layerCanvas.width = layer.width;
+                    layerCanvas.height = layer.height;
+                    const layerCtx = layerCanvas.getContext('2d');
+                    layerCtx.drawImage(layer.image, 0, 0, layer.width, layer.height);
+                    const imageData = layerCtx.getImageData(0, 0, layer.width, layer.height);
+                    
+                    // 创建遮罩画布
+                    const alphaCanvas = document.createElement('canvas');
+                    alphaCanvas.width = layer.width;
+                    alphaCanvas.height = layer.height;
+                    const alphaCtx = alphaCanvas.getContext('2d');
+                    const alphaData = alphaCtx.createImageData(layer.width, layer.height);
+                    
+                    // 提取alpha通道
+                    for (let i = 0; i < imageData.data.length; i += 4) {
+                        alphaData.data[i] = alphaData.data[i + 1] = alphaData.data[i + 2] = imageData.data[i + 3];
+                        alphaData.data[i + 3] = 255;
+                    }
+                    
+                    alphaCtx.putImageData(alphaData, 0, 0);
+                    maskCtx.drawImage(alphaCanvas, -layer.width/2, -layer.height/2, layer.width, layer.height);
+                }
                 maskCtx.restore();
-                tempCtx.restore();
             });
 
-            // 在保存遮罩之前反转遮罩数据
-            const maskData = maskCtx.getImageData(0, 0, this.width, this.height);
-            const data = maskData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                // 反转RGB值（255 - 原值）
-                data[i] = data[i + 1] = data[i + 2] = 255 - data[i];
-                data[i + 3] = 255; // Alpha保持不变
+            // 反转最终的遮罩
+            const finalMaskData = maskCtx.getImageData(0, 0, this.width, this.height);
+            for (let i = 0; i < finalMaskData.data.length; i += 4) {
+                finalMaskData.data[i] = 
+                finalMaskData.data[i + 1] = 
+                finalMaskData.data[i + 2] = 255 - finalMaskData.data[i];
+                finalMaskData.data[i + 3] = 255;
             }
-            maskCtx.putImageData(maskData, 0, 0);
+            maskCtx.putImageData(finalMaskData, 0, 0);
 
             // 保存主图像和遮罩
             tempCanvas.toBlob(async (blob) => {
@@ -938,5 +978,536 @@ export class Canvas {
         this.layers.push(layer);
         this.selectedLayer = layer;
         this.render();
+    }
+
+    processInputData(nodeData) {
+        if (nodeData.input_image) {
+            this.addInputImage(nodeData.input_image);
+        }
+        if (nodeData.input_mask) {
+            this.addInputMask(nodeData.input_mask);
+        }
+    }
+
+    addInputImage(imageData) {
+        const layer = new ImageLayer(imageData);
+        this.layers.push(layer);
+        this.updateCanvas();
+    }
+
+    addInputMask(maskData) {
+        if (this.inputImage) {
+            const mask = new MaskLayer(maskData);
+            mask.linkToLayer(this.inputImage);
+            this.masks.push(mask);
+            this.updateCanvas();
+        }
+    }
+
+    async addInputToCanvas(inputImage, inputMask) {
+        try {
+            console.log("Adding input to canvas:", { inputImage });
+            
+            // 创建临时画布
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = inputImage.width;
+            tempCanvas.height = inputImage.height;
+
+            // 将数据绘制到临时画布
+            const imgData = new ImageData(
+                inputImage.data,
+                inputImage.width,
+                inputImage.height
+            );
+            tempCtx.putImageData(imgData, 0, 0);
+
+            // 创建新图像
+            const image = new Image();
+            await new Promise((resolve, reject) => {
+                image.onload = resolve;
+                image.onerror = reject;
+                image.src = tempCanvas.toDataURL();
+            });
+
+            // 计算缩放比例
+            const scale = Math.min(
+                this.width / inputImage.width * 0.8,
+                this.height / inputImage.height * 0.8
+            );
+
+            // 创建新图层
+            const layer = {
+                image: image,
+                x: (this.width - inputImage.width * scale) / 2,
+                y: (this.height - inputImage.height * scale) / 2,
+                width: inputImage.width * scale,
+                height: inputImage.height * scale,
+                rotation: 0,
+                zIndex: this.layers.length
+            };
+
+            // 如果有遮罩数据，添加到图层
+            if (inputMask) {
+                layer.mask = inputMask.data;
+            }
+
+            // 添加图层并选中
+            this.layers.push(layer);
+            this.selectedLayer = layer;
+            
+            // 渲染画布
+            this.render();
+            console.log("Layer added successfully");
+            
+            return true;
+
+        } catch (error) {
+            console.error("Error in addInputToCanvas:", error);
+            throw error;
+        }
+    }
+
+    // 改进图像转换方法
+    async convertTensorToImage(tensor) {
+        try {
+            console.log("Converting tensor to image:", tensor);
+            
+            if (!tensor || !tensor.data || !tensor.width || !tensor.height) {
+                throw new Error("Invalid tensor data");
+            }
+
+            // 创建临时画布
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = tensor.width;
+            canvas.height = tensor.height;
+
+            // 创建像数据
+            const imageData = new ImageData(
+                new Uint8ClampedArray(tensor.data),
+                tensor.width,
+                tensor.height
+            );
+
+            // 将数据绘制到画布
+            ctx.putImageData(imageData, 0, 0);
+
+            // 创建新图像
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = (e) => reject(new Error("Failed to load image: " + e));
+                img.src = canvas.toDataURL();
+            });
+        } catch (error) {
+            console.error("Error converting tensor to image:", error);
+            throw error;
+        }
+    }
+
+    // 改进遮罩转换方法
+    async convertTensorToMask(tensor) {
+        if (!tensor || !tensor.data) {
+            throw new Error("Invalid mask tensor");
+        }
+
+        try {
+            // 确保数据是Float32Array
+            return new Float32Array(tensor.data);
+        } catch (error) {
+            throw new Error(`Mask conversion failed: ${error.message}`);
+        }
+    }
+
+    // 改进数据初始化方法
+    async initNodeData() {
+        try {
+            console.log("Starting node data initialization...");
+            
+            // 检查节点和输入是否存在
+            if (!this.node || !this.node.inputs) {
+                console.log("Node or inputs not ready");
+                return this.scheduleDataCheck();
+            }
+
+            // 检查图像输入
+            if (this.node.inputs[0] && this.node.inputs[0].link) {
+                const imageLinkId = this.node.inputs[0].link;
+                const imageData = app.nodeOutputs[imageLinkId];
+                
+                if (imageData) {
+                    console.log("Found image data:", imageData);
+                    await this.processImageData(imageData);
+                    this.dataInitialized = true;
+                } else {
+                    console.log("Image data not available yet");
+                    return this.scheduleDataCheck();
+                }
+            }
+
+            // 检查遮罩输入
+            if (this.node.inputs[1] && this.node.inputs[1].link) {
+                const maskLinkId = this.node.inputs[1].link;
+                const maskData = app.nodeOutputs[maskLinkId];
+                
+                if (maskData) {
+                    console.log("Found mask data:", maskData);
+                    await this.processMaskData(maskData);
+                }
+            }
+
+        } catch (error) {
+            console.error("Error in initNodeData:", error);
+            return this.scheduleDataCheck();
+        }
+    }
+
+    // 添加数据检查调度方法
+    scheduleDataCheck() {
+        if (this.pendingDataCheck) {
+            clearTimeout(this.pendingDataCheck);
+        }
+        
+        this.pendingDataCheck = setTimeout(() => {
+            this.pendingDataCheck = null;
+            if (!this.dataInitialized) {
+                this.initNodeData();
+            }
+        }, 1000); // 1秒后重试
+    }
+
+    // 修改图像数据处理方法
+    async processImageData(imageData) {
+        try {
+            if (!imageData) return;
+            
+            console.log("Processing image data:", {
+                type: typeof imageData,
+                isArray: Array.isArray(imageData),
+                shape: imageData.shape,
+                hasData: !!imageData.data
+            });
+            
+            // 处理数组格式
+            if (Array.isArray(imageData)) {
+                imageData = imageData[0];
+            }
+            
+            // 验证数据格式
+            if (!imageData.shape || !imageData.data) {
+                throw new Error("Invalid image data format");
+            }
+            
+            // 保持原始尺寸和比例
+            const originalWidth = imageData.shape[2];
+            const originalHeight = imageData.shape[1];
+            
+            // 计算适当的缩放比例
+            const scale = Math.min(
+                this.width / originalWidth * 0.8,
+                this.height / originalHeight * 0.8
+            );
+            
+            // 转换数据
+            const convertedData = this.convertTensorToImageData(imageData);
+            if (convertedData) {
+                const image = await this.createImageFromData(convertedData);
+                
+                // 使用计算的缩放比例添加图层
+                this.addScaledLayer(image, scale);
+                console.log("Image layer added successfully with scale:", scale);
+            }
+        } catch (error) {
+            console.error("Error processing image data:", error);
+            throw error;
+        }
+    }
+
+    // 添加新的缩放图层方法
+    addScaledLayer(image, scale) {
+        try {
+            const scaledWidth = image.width * scale;
+            const scaledHeight = image.height * scale;
+            
+            const layer = {
+                image: image,
+                x: (this.width - scaledWidth) / 2,
+                y: (this.height - scaledHeight) / 2,
+                width: scaledWidth,
+                height: scaledHeight,
+                rotation: 0,
+                zIndex: this.layers.length,
+                originalWidth: image.width,
+                originalHeight: image.height
+            };
+            
+            this.layers.push(layer);
+            this.selectedLayer = layer;
+            this.render();
+            
+            console.log("Scaled layer added:", {
+                originalSize: `${image.width}x${image.height}`,
+                scaledSize: `${scaledWidth}x${scaledHeight}`,
+                scale: scale
+            });
+        } catch (error) {
+            console.error("Error adding scaled layer:", error);
+            throw error;
+        }
+    }
+
+    // 改进张量转换方法
+    convertTensorToImageData(tensor) {
+        try {
+            const shape = tensor.shape;
+            const height = shape[1];
+            const width = shape[2];
+            const channels = shape[3];
+            
+            console.log("Converting tensor:", {
+                shape: shape,
+                dataRange: {
+                    min: tensor.min_val,
+                    max: tensor.max_val
+                }
+            });
+            
+            // 创建图像数据
+            const imageData = new ImageData(width, height);
+            const data = new Uint8ClampedArray(width * height * 4);
+            
+            // 重建数据结构
+            const flatData = tensor.data;
+            const pixelCount = width * height;
+            
+            for (let i = 0; i < pixelCount; i++) {
+                const pixelIndex = i * 4;
+                const tensorIndex = i * channels;
+                
+                // 正确处理RGB通道
+                for (let c = 0; c < channels; c++) {
+                    const value = flatData[tensorIndex + c];
+                    // 根据实际值范围行映射
+                    const normalizedValue = (value - tensor.min_val) / (tensor.max_val - tensor.min_val);
+                    data[pixelIndex + c] = Math.round(normalizedValue * 255);
+                }
+                
+                // Alpha通道
+                data[pixelIndex + 3] = 255;
+            }
+            
+            imageData.data.set(data);
+            return imageData;
+        } catch (error) {
+            console.error("Error converting tensor:", error);
+            return null;
+        }
+    }
+
+    // 添加图像创建方法
+    async createImageFromData(imageData) {
+        return new Promise((resolve, reject) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = imageData.width;
+            canvas.height = imageData.height;
+            const ctx = canvas.getContext('2d');
+            ctx.putImageData(imageData, 0, 0);
+
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = canvas.toDataURL();
+        });
+    }
+
+    // 添加数据重试机制
+    async retryDataLoad(maxRetries = 3, delay = 1000) {
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                await this.initNodeData();
+                return;
+            } catch (error) {
+                console.warn(`Retry ${i + 1}/${maxRetries} failed:`, error);
+                if (i < maxRetries - 1) {
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        console.error("Failed to load data after", maxRetries, "retries");
+    }
+
+    async processMaskData(maskData) {
+        try {
+            if (!maskData) return;
+            
+            console.log("Processing mask data:", maskData);
+            
+            // 处理数组格式
+            if (Array.isArray(maskData)) {
+                maskData = maskData[0];
+            }
+            
+            // 检查数据格式
+            if (!maskData.shape || !maskData.data) {
+                throw new Error("Invalid mask data format");
+            }
+            
+            // 如果有选中的图层，应用遮罩
+            if (this.selectedLayer) {
+                const maskTensor = await this.convertTensorToMask(maskData);
+                this.selectedLayer.mask = maskTensor;
+                this.render();
+                console.log("Mask applied to selected layer");
+            }
+        } catch (error) {
+            console.error("Error processing mask data:", error);
+        }
+    }
+
+    async loadImageFromCache(base64Data) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = base64Data;
+        });
+    }
+
+    async importImage(cacheData) {
+        try {
+            console.log("Starting image import with cache data");
+            const img = await this.loadImageFromCache(cacheData.image);
+            const mask = cacheData.mask ? await this.loadImageFromCache(cacheData.mask) : null;
+            
+            // 计算缩放比例
+            const scale = Math.min(
+                this.width / img.width * 0.8,
+                this.height / img.height * 0.8
+            );
+            
+            // 创建临时画布来合并图像和遮罩
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = img.width;
+            tempCanvas.height = img.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // 绘制图像
+            tempCtx.drawImage(img, 0, 0);
+            
+            // 如果有遮罩，应用遮罩
+            if (mask) {
+                const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+                const maskCanvas = document.createElement('canvas');
+                maskCanvas.width = img.width;
+                maskCanvas.height = img.height;
+                const maskCtx = maskCanvas.getContext('2d');
+                maskCtx.drawImage(mask, 0, 0);
+                const maskData = maskCtx.getImageData(0, 0, img.width, img.height);
+                
+                // 应用遮罩到alpha通道
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                    imageData.data[i + 3] = maskData.data[i];
+                }
+                
+                tempCtx.putImageData(imageData, 0, 0);
+            }
+            
+            // 创建最终图像
+            const finalImage = new Image();
+            await new Promise((resolve) => {
+                finalImage.onload = resolve;
+                finalImage.src = tempCanvas.toDataURL();
+            });
+            
+            // 创建新图层
+            const layer = {
+                image: finalImage,
+                x: (this.width - img.width * scale) / 2,
+                y: (this.height - img.height * scale) / 2,
+                width: img.width * scale,
+                height: img.height * scale,
+                rotation: 0,
+                zIndex: this.layers.length
+            };
+            
+            this.layers.push(layer);
+            this.selectedLayer = layer;
+            this.render();
+            
+        } catch (error) {
+            console.error('Error importing image:', error);
+        }
+    }
+
+    // 添加混合模式菜单方法
+    showBlendModeMenu(x, y) {
+        // 移除已存在的菜单
+        const existingMenu = document.getElementById('blend-mode-menu');
+        if (existingMenu) {
+            document.body.removeChild(existingMenu);
+        }
+
+        const menu = document.createElement('div');
+        menu.id = 'blend-mode-menu';
+        menu.style.cssText = `
+            position: fixed;
+            left: ${x}px;
+            top: ${y}px;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 4px;
+            padding: 5px;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        `;
+
+        this.blendModes.forEach(mode => {
+            const option = document.createElement('div');
+            option.style.cssText = `
+                padding: 5px 10px;
+                color: white;
+                cursor: pointer;
+                transition: background-color 0.2s;
+            `;
+            option.textContent = `${mode.label} (${mode.name})`;
+            
+            // 高亮当前选中的混合模式
+            if (this.selectedLayer && this.selectedLayer.blendMode === mode.name) {
+                option.style.backgroundColor = '#3a3a3a';
+            }
+            
+            option.onmouseover = () => {
+                option.style.backgroundColor = '#3a3a3a';
+            };
+            option.onmouseout = () => {
+                if (!(this.selectedLayer && this.selectedLayer.blendMode === mode.name)) {
+                    option.style.backgroundColor = '';
+                }
+            };
+            
+            option.onclick = () => {
+                if (this.selectedLayer) {
+                    this.selectedLayer.blendMode = mode.name;
+                    this.render();
+                }
+                document.body.removeChild(menu);
+            };
+            
+            menu.appendChild(option);
+        });
+
+        document.body.appendChild(menu);
+
+        // 点击其他地方关闭菜单
+        const closeMenu = (e) => {
+            if (!menu.contains(e.target)) {
+                document.body.removeChild(menu);
+                document.removeEventListener('mousedown', closeMenu);
+            }
+        };
+        setTimeout(() => {
+            document.addEventListener('mousedown', closeMenu);
+        }, 0);
     }
 } 
