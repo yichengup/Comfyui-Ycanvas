@@ -34,6 +34,7 @@ Place it in： models/BiRefNet
 
 2024/11/24 Updated Features：
 Add input images and masks; add blending mode options for images in the canvas (you can select them by selecting the image and then shift+clicking the image to pop up the menu)
+Note: The output blending mode does not change, and needs to be updated by slightly changing the canvas content
 ![1732416209647](https://github.com/user-attachments/assets/befb83a6-44aa-436f-9e11-614e4090a8d9)
 
 
