@@ -1,11 +1,14 @@
-from .canvas_node import CanvasView
+from .canvas_node import CanvasNode
+
+# 设置路由
+CanvasNode.setup_routes()
 
 NODE_CLASS_MAPPINGS = {
-    "CanvasView": CanvasView
+    "CanvasNode": CanvasNode
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "CanvasView": "Canvas View"
+    "CanvasNode": "Canvas Node"
 }
 
 WEB_DIRECTORY = "./js"
