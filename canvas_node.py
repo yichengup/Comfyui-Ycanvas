@@ -142,7 +142,7 @@ class CanvasNode:
     RETURN_TYPES = ("IMAGE", "MASK")
     RETURN_NAMES = ("image", "mask")
     FUNCTION = "process_canvas_image"
-    CATEGORY = "ycnode"
+    CATEGORY = "Ycanvas"
 
     def add_image_to_canvas(self, input_image):
         """处理输入图像"""
