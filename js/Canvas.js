@@ -50,6 +50,16 @@ export class Canvas {
             { name: 'difference', label: '差值' },
             { name: 'exclusion', label: '排除' }
         ];
+        
+        this.selectedBlendMode = null;
+        this.blendOpacity = 100;
+        this.isAdjustingOpacity = false;
+        
+        // 添加不透明度属性
+        this.layers = this.layers.map(layer => ({
+            ...layer,
+            opacity: 1 // 默认不透明度为 1
+        }));
     }
 
     initCanvas() {
@@ -350,7 +360,7 @@ export class Canvas {
                 }
             }
             
-            // ... 其余现有的mousedown处理代码 ...
+            // ... 其余现的mousedown处理代 ...
         });
     }
 
@@ -375,7 +385,9 @@ export class Canvas {
                 width: image.width,
                 height: image.height,
                 rotation: 0,
-                zIndex: this.layers.length
+                zIndex: this.layers.length,
+                blendMode: 'normal',  // 添加默认混合模式
+                opacity: 1  // 添加默认透明度
             };
             
             this.layers.push(layer);
@@ -487,8 +499,9 @@ export class Canvas {
             
             ctx.save();
             
-            // 应用混合模式
+            // 应用混合模式和不透明度
             ctx.globalCompositeOperation = layer.blendMode || 'normal';
+            ctx.globalAlpha = layer.opacity !== undefined ? layer.opacity : 1;
             
             const centerX = layer.x + layer.width/2;
             const centerY = layer.y + layer.height/2;
@@ -642,9 +655,13 @@ export class Canvas {
 
             // 按照zIndex顺序绘制所有图层
             this.layers.sort((a, b) => a.zIndex - b.zIndex).forEach(layer => {
-                // 绘制主图像，包含混合模式
+                // 绘制主图像，包含混合模式和透明度
                 tempCtx.save();
+                
+                // 应用混合模式和透明度
                 tempCtx.globalCompositeOperation = layer.blendMode || 'normal';
+                tempCtx.globalAlpha = layer.opacity !== undefined ? layer.opacity : 1;
+                
                 tempCtx.translate(layer.x + layer.width/2, layer.y + layer.height/2);
                 tempCtx.rotate(layer.rotation * Math.PI / 180);
                 tempCtx.drawImage(
@@ -666,7 +683,7 @@ export class Canvas {
                 if (layer.mask) {
                     maskCtx.drawImage(layer.mask, -layer.width/2, -layer.height/2, layer.width, layer.height);
                 } else {
-                    // 如果没有遮罩，使用图层的alpha通道
+                    // 如果没有遮罩，使用图层的alpha通道和透明度值
                     const layerCanvas = document.createElement('canvas');
                     layerCanvas.width = layer.width;
                     layerCanvas.height = layer.height;
@@ -681,9 +698,10 @@ export class Canvas {
                     const alphaCtx = alphaCanvas.getContext('2d');
                     const alphaData = alphaCtx.createImageData(layer.width, layer.height);
                     
-                    // 提取alpha通道
+                    // 提取alpha通道并应用图层透明度
                     for (let i = 0; i < imageData.data.length; i += 4) {
-                        alphaData.data[i] = alphaData.data[i + 1] = alphaData.data[i + 2] = imageData.data[i + 3];
+                        const alpha = imageData.data[i + 3] * (layer.opacity !== undefined ? layer.opacity : 1);
+                        alphaData.data[i] = alphaData.data[i + 1] = alphaData.data[i + 2] = alpha;
                         alphaData.data[i + 3] = 255;
                     }
                     
@@ -1131,7 +1149,7 @@ export class Canvas {
                 return this.scheduleDataCheck();
             }
 
-            // 检查图像输入
+            // 检查图像��入
             if (this.node.inputs[0] && this.node.inputs[0].link) {
                 const imageLinkId = this.node.inputs[0].link;
                 const imageData = app.nodeOutputs[imageLinkId];
@@ -1413,7 +1431,7 @@ export class Canvas {
                 tempCtx.putImageData(imageData, 0, 0);
             }
             
-            // 创建最终图像
+            // 创��最终图像
             const finalImage = new Image();
             await new Promise((resolve) => {
                 finalImage.onload = resolve;
@@ -1440,7 +1458,7 @@ export class Canvas {
         }
     }
 
-    // 添加混合模式菜单方法
+    // 修改 showBlendModeMenu 方法
     showBlendModeMenu(x, y) {
         // 移除已存在的菜单
         const existingMenu = document.getElementById('blend-mode-menu');
@@ -1463,6 +1481,12 @@ export class Canvas {
         `;
 
         this.blendModes.forEach(mode => {
+            const container = document.createElement('div');
+            container.className = 'blend-mode-container';
+            container.style.cssText = `
+                margin-bottom: 5px;
+            `;
+
             const option = document.createElement('div');
             option.style.cssText = `
                 padding: 5px 10px;
@@ -1472,29 +1496,70 @@ export class Canvas {
             `;
             option.textContent = `${mode.label} (${mode.name})`;
             
-            // 高亮当前选中的混合模式
-            if (this.selectedLayer && this.selectedLayer.blendMode === mode.name) {
+            // 创建滑动条，使用当前图层的透明度值
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.min = '0';
+            slider.max = '100';
+            // 使用当前图层的透明度值，如果存在的话
+            slider.value = this.selectedLayer.opacity ? Math.round(this.selectedLayer.opacity * 100) : 100;
+            slider.style.cssText = `
+                width: 100%;
+                margin: 5px 0;
+                display: none;
+            `;
+
+            // 如果是当前图层的混合模式，显示滑动条
+            if (this.selectedLayer.blendMode === mode.name) {
+                slider.style.display = 'block';
                 option.style.backgroundColor = '#3a3a3a';
             }
-            
-            option.onmouseover = () => {
-                option.style.backgroundColor = '#3a3a3a';
-            };
-            option.onmouseout = () => {
-                if (!(this.selectedLayer && this.selectedLayer.blendMode === mode.name)) {
-                    option.style.backgroundColor = '';
-                }
-            };
-            
+
+            // 修改点击事件
             option.onclick = () => {
+                // 隐藏所有其他滑动条
+                menu.querySelectorAll('input[type="range"]').forEach(s => {
+                    s.style.display = 'none';
+                });
+                menu.querySelectorAll('.blend-mode-container div').forEach(d => {
+                    d.style.backgroundColor = '';
+                });
+                
+                // 显示当前选项的滑动条
+                slider.style.display = 'block';
+                option.style.backgroundColor = '#3a3a3a';
+                
+                // 设置当前选中的混合模式
                 if (this.selectedLayer) {
                     this.selectedLayer.blendMode = mode.name;
                     this.render();
                 }
-                document.body.removeChild(menu);
             };
-            
-            menu.appendChild(option);
+
+            // 添加滑动条的input事件（实时更新）
+            slider.addEventListener('input', () => {
+                if (this.selectedLayer) {
+                    this.selectedLayer.opacity = slider.value / 100;
+                    this.render();
+                }
+            });
+
+            // 添加滑动条的change事件（结束拖动时保存状态）
+            slider.addEventListener('change', async () => {
+                if (this.selectedLayer) {
+                    this.selectedLayer.opacity = slider.value / 100;
+                    this.render();
+                    // 保存到服务器并更新节点
+                    await this.saveToServer(this.widget.value);
+                    if (this.node) {
+                        app.graph.runStep();
+                    }
+                }
+            });
+
+            container.appendChild(option);
+            container.appendChild(slider);
+            menu.appendChild(container);
         });
 
         document.body.appendChild(menu);
@@ -1509,5 +1574,49 @@ export class Canvas {
         setTimeout(() => {
             document.addEventListener('mousedown', closeMenu);
         }, 0);
+    }
+
+    handleBlendModeSelection(mode) {
+        if (this.selectedBlendMode === mode && !this.isAdjustingOpacity) {
+            // 第二次点击，应用效果
+            this.applyBlendMode(mode, this.blendOpacity);
+            this.closeBlendModeMenu();
+        } else {
+            // 第一次点击，显示透明度调整器
+            this.selectedBlendMode = mode;
+            this.isAdjustingOpacity = true;
+            this.showOpacitySlider(mode);
+        }
+    }
+
+    showOpacitySlider(mode) {
+        // 创建滑动条
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.min = '0';
+        slider.max = '100';
+        slider.value = this.blendOpacity;
+        slider.className = 'blend-opacity-slider';
+        
+        slider.addEventListener('input', (e) => {
+            this.blendOpacity = parseInt(e.target.value);
+            // 可以添加实时预览效果
+        });
+        
+        // 将滑动条添加到对应的混合模式选项下
+        const modeElement = document.querySelector(`[data-blend-mode="${mode}"]`);
+        if (modeElement) {
+            modeElement.appendChild(slider);
+        }
+    }
+
+    applyBlendMode(mode, opacity) {
+        // 应用混合模式和透明度
+        this.currentLayer.style.mixBlendMode = mode;
+        this.currentLayer.style.opacity = opacity / 100;
+        
+        // 清理状态
+        this.selectedBlendMode = null;
+        this.isAdjustingOpacity = false;
     }
 } 
