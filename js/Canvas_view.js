@@ -92,6 +92,26 @@ async function createCanvasWidget(node, widget, app) {
         .painter-dialog button:hover {
             background: #606060;
         }
+
+        .blend-opacity-slider {
+            width: 100%;
+            margin: 5px 0;
+            display: none;
+        }
+        
+        .blend-mode-active .blend-opacity-slider {
+            display: block;
+        }
+        
+        .blend-mode-item {
+            padding: 5px;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .blend-mode-item.active {
+            background-color: rgba(0,0,0,0.1);
+        }
     `;
     document.head.appendChild(style);
 
