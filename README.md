@@ -16,6 +16,8 @@ hold down the Shift key and scroll the mouse wheel up/down to rotate the image c
 **6**. Other functions:
 All on the button, quite obvious
 
+2025/06/30 Added lasso cutout function
+
 **Revise the canvas size and drag the node interface box to refresh it.**
 
 Generally, the model is downloaded automatically. If it doesn't work, you can use the following
