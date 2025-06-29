@@ -1,39 +1,190 @@
-# Comfyui-Ycnode
-**Canvas Node**
+# ComfyUI-Ycanvas 插件
 
-**1**. Basic Operations:
-Select Image: Click on the image with the mouse to select it.
-Deselect Image: Double-click on the image or click on an empty area to deselect it.
+## 📝 简介
 
-**2**. Zooming Image:
-Zoom In/Out: With the image selected, scroll the mouse wheel up/down to zoom in/out.
+ComfyUI-Ycanvas 是一个功能强大的 ComfyUI 画布节点插件，提供了完整的图像编辑和合成功能。该插件集成了多种图像处理工具，包括高级套索工具、AI 抠图、图层管理、混合模式等，特别适用于图像合成、编辑和工作流处理。
 
-**3**. Rotating Image:
-hold down the Shift key and scroll the mouse wheel up/down to rotate the image clockwise/counterclockwise.
+## ✨ 主要特性
 
-**5**. matting，The button:  is the cutout function
+### 🎨 画布功能
+- **可调节画布尺寸**：支持 1×1 到 4096×4096 像素的自定义画布尺寸
+- **多图层支持**：无限制的图层数量，支持图层重排序和透明度调节
+- **高性能渲染**：针对大尺寸画布优化的渲染引擎，支持离屏渲染
 
-**6**. Other functions:
-All on the button, quite obvious
+### 🖱️ 图像操作
+- **拖拽导入**：支持直接拖拽图片到画布或使用按钮添加
+- **精确变换**：旋转、缩放、镜像、移动等基础变换操作
+- **快捷键支持**：
+  - 鼠标滚轮：缩放图像
+  - Shift + 鼠标滚轮：旋转图像
+  - Alt + 拖拽：自由变形
 
-2025/06/30 Added lasso cutout function
+### 🔧 高级套索工具
+- **多种模式**：
+  - 新建：创建新的选区遮罩
+  - 添加：向现有遮罩添加区域
+  - 减去：从现有遮罩减去区域
+  - 恢复原图：一键恢复到原始状态
+- **性能优化**：针对大尺寸画布的点抽样和渲染优化
+- **实时预览**：绘制过程中的绿色虚线预览
+- **撤销功能**：保存原始状态，支持快速恢复
 
-**Revise the canvas size and drag the node interface box to refresh it.**
+### 🤖 AI 抠图功能
+- **BiRefNet 模型**：集成先进的 AI 抠图算法
+- **自动下载**：首次使用时自动下载所需模型
+- **高质量结果**：支持细节保留和边缘优化
+- **批处理支持**：可处理多个图层
 
-Generally, the model is downloaded automatically. If it doesn't work, you can use the following
-Manual placement
 
-Model Name： models--ZhengPeng7--BiRefNet
+## 🚀 安装说明
 
-The cloud disk link is as follows
+### 方法：自动安装
+1. 克隆仓库到 ComfyUI 的 custom_nodes 目录：
+```bash
+cd ComfyUI/custom_nodes
+git clone https://github.com/your-repo/Comfyui-Ycanvas.git
+```
 
-baidu Link：https://pan.baidu.com/s/1PiZvuHcdlcZGoL7WDYnMkA?pwd=nt76  
-google link: https://drive.google.com/drive/folders/1BCLInCLH89fmTpYoP8Sgs_Eqww28f_wq?usp=sharing
+2. 安装依赖：
+```bash
+cd Comfyui-Ycanvas
+pip install -r requirements.txt
+```
 
-Place it in： models/BiRefNet
+3. 重启 ComfyUI
 
-**Example diagram of the process of canvas node, matting, layout, and output**
-![1732110001138](https://github.com/user-attachments/assets/372a14a5-8255-4768-9547-d8a6083bb76c)
+
+
+### 模型下载
+插件会自动下载所需的 BiRefNet 模型。如果自动下载失败，可手动下载：
+
+**模型名称**：BiRefNet  
+**下载链接**：
+- 百度网盘：https://pan.baidu.com/s/1PiZvuHcdlcZGoL7WDYnMkA?pwd=nt76
+- Google Drive：https://drive.google.com/drive/folders/1BCLInCLH89fmTpYoP8Sgs_Eqww28f_wq
+
+**安装路径**：`ComfyUI/models/BiRefNet/`
+
+## 📖 使用指南
+
+### 基础操作
+
+#### 1. 添加图像
+- **Add Image**：点击按钮选择本地图片文件
+- **Import Input**：导入从其他节点传递的图像数据 必须执行一次，才能点击导入
+- 支持拖拽多个图片同时添加
+
+#### 2. 画布操作
+- **Canvas Size**：调整画布尺寸（建议尺寸：512×512 到 2048×2048）
+- **选择图像**：单击图像进行选择
+- **取消选择**：双击图像或点击空白区域
+
+#### 3. 图像变换
+- **旋转**：Rotate +90° 按钮或 Shift + 鼠标滚轮
+- **缩放**：Scale +5%/-5% 按钮或鼠标滚轮
+- **镜像**：Mirror H（水平）/ Mirror V（垂直）按钮
+- **移动**：直接拖拽图像
+
+#### 4. 图层管理
+- **Layer Up/Down**：调整图层顺序
+- **Remove Layer**：删除选中图层
+- 支持多图层叠加和混合
+
+### 高级功能
+
+#### 套索工具使用
+1. 选择要编辑的图层
+2. 点击 **"套索工具"** 激活
+3. 选择模式：
+   - **新建**：创建全新选区
+   - **添加**：扩展现有选区  
+   - **减去**：缩小现有选区
+   - **恢复原图**：撤销所有修改
+4. 在图像上绘制选区路径
+5. 完成绘制后自动应用遮罩
+6. 绘制后，不要移动图层，否则会丢失选区，导致图片遮罩错误合成。
+
+#### AI 抠图功能
+1. 选择需要抠图的图层
+2. 点击 **"Matting"** 按钮
+3. 等待 AI 处理完成
+4. 系统会创建新的透明背景图层
+
+
+
+## ⚙️ 技术特性
+
+### 性能优化
+- **大画布支持**：针对 1024×1024 以上画布的专项优化
+- **内存管理**：智能缓存机制，减少内存占用
+- **渲染优化**：离屏渲染技术，提升绘制性能
+- **事件节流**：防止频繁操作导致的性能问题
+
+### 兼容性
+- **ComfyUI 版本**：支持最新版本的 ComfyUI
+- **操作系统**：Windows、macOS、Linux
+- **GPU 支持**：NVIDIA CUDA、AMD ROCm
+- **数据格式**：支持标准的 IMAGE 和 MASK 张量格式
+
+### 扩展性
+- **插件架构**：模块化设计，易于扩展
+- **API 接口**：提供丰富的 REST API
+- **事件系统**：支持自定义事件处理
+- **配置选项**：灵活的参数配置
+
+## 🔧 配置选项
+
+### 画布设置
+- `canvas_image`：输出文件名
+- `trigger`：触发器参数（用于工作流同步）
+- `output_switch`：输出开关
+- `cache_enabled`：缓存启用开关
+
+### 输入接口
+- `input_image`：可选的输入图像
+- `input_mask`：可选的输入遮罩
+
+### 输出接口
+- `image`：处理后的图像张量
+- `mask`：生成的遮罩张量
+
+## 🐛 故障排除
+
+### 常见问题
+
+**Q: 套索工具绘制时出现虚线消失**  
+A: 这通常发生在大尺寸画布上。请确保：
+- 绘制速度不要过快
+- 避免快速移动鼠标
+- 使用较小的画布尺寸进行测试
+
+**Q: AI 抠图功能无法使用**  
+A: 请检查：
+- 模型是否正确下载到 `models/BiRefNet/` 目录
+- 是否有足够的 GPU 内存
+- 网络连接是否正常
+
+**Q: 画布显示异常或消失**  
+A: 尝试：
+- 重新调整节点大小
+- 刷新浏览器页面
+- 检查浏览器控制台错误信息
+
+### 性能建议
+1. **推荐画布尺寸**：512×512 到 1024×1024
+2. **图层数量**：建议不超过 20 个图层
+3. **内存使用**：大画布时建议关闭不必要的功能
+4. **浏览器优化**：使用 Chrome 或 Edge 浏览器以获得最佳性能
+
+## 📄 许可证
+
+本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
+
+## 🙏 致谢
+
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - 强大的 AI 图像生成界面
+- [BiRefNet](https://github.com/ZhengPeng7/BiRefNet) - 高质量图像抠图模型
+- 所有贡献者和用户的支持
 
 
 
