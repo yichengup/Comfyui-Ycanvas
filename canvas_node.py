@@ -159,6 +159,17 @@ class CanvasNode:
             if input_image.dim() == 3 and input_image.shape[0] in [1, 3]:
                 input_image = input_image.permute(1, 2, 0)
             
+            # 确保RGB格式
+            if input_image.shape[2] == 1:  # 灰度图扩展为RGB
+                input_image = input_image.repeat(1, 1, 3)
+            elif input_image.shape[2] == 4:  # RGBA格式处理alpha通道
+                # 分离RGB和alpha通道
+                rgb = input_image[:, :, :3]
+                alpha = input_image[:, :, 3:4]
+                # 处理透明区域
+                input_image = rgb
+                # 如果需要，可以在这里处理alpha通道
+            
             return input_image
             
         except Exception as e:
@@ -189,6 +200,8 @@ class CanvasNode:
                         align_corners=False
                     ).squeeze()
             
+            # 翻转遮罩值，使黑色表示透明区域（值=0），白色表示不透明区域（值=1）
+            # 这确保了与前端遮罩处理逻辑的一致性
             return input_mask
             
         except Exception as e:
@@ -282,16 +295,29 @@ class CanvasNode:
                 # 尝试读取遮罩图像
                 path_mask = path_image.replace('.png', '_mask.png')
                 if os.path.exists(path_mask):
+                    # 读取遮罩图像并转换为灰度
                     mask = Image.open(path_mask).convert('L')
-                    mask = np.array(mask).astype(np.float32) / 255.0
-                    processed_mask = torch.from_numpy(mask)[None,]
+                    
+                    # 转换为numpy数组并归一化 (0-1范围)
+                    mask_array = np.array(mask).astype(np.float32) / 255.0
+                    
+                    # 读取的遮罩是RGBA中A通道的可视化:
+                    # 白色(255/255=1.0)表示不透明区域
+                    # 黑色(0/255=0.0)表示透明区域
+                    # 因此不需要额外处理
+                    
+                    # 转换为PyTorch张量
+                    processed_mask = torch.from_numpy(mask_array)[None,]
+                    print(f"Loaded mask with shape: {processed_mask.shape}")
                 else:
-                    # 如果没有遮罩文件，创建全白遮罩
-                    processed_mask = torch.ones((1, processed_image.shape[1], processed_image.shape[2]), dtype=torch.float32)
+                    # 如果没有遮罩文件，创建全黑遮罩(全透明)
+                    processed_mask = torch.zeros((1, processed_image.shape[1], processed_image.shape[2]), dtype=torch.float32)
+                    print("Created black mask (transparent) as default")
             except Exception as e:
                 print(f"Error loading mask: {str(e)}")
-                # 创建默认遮罩
-                processed_mask = torch.ones((1, processed_image.shape[1], processed_image.shape[2]), dtype=torch.float32)
+                # 创建默认黑色遮罩
+                processed_mask = torch.zeros((1, processed_image.shape[1], processed_image.shape[2]), dtype=torch.float32)
+                print("Created black mask after error")
             
             # 输出处理
             if not output_switch:
