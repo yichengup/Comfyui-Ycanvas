@@ -192,7 +192,7 @@ A: 尝试：
 
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - 强大的 AI 图像生成界面
 - [BiRefNet](https://github.com/ZhengPeng7/BiRefNet) - 高质量图像抠图模型
-- [Comfyui_three_js](https://github.com/lo-th/Comfyui_three_js) -基于这个原始3d模型展示画布进行改造，感谢作者
+- [Comfyui_three_js](https://github.com/lo-th/Comfyui_three_js) - 基于这个原始3d模型展示画布进行改造，感谢作者
 - 所有贡献者和用户的支持
 
 
